@@ -109,7 +109,7 @@ Follow the next steps to get the database server running on Docker and configure
     -e 'ACCEPT_EULA=Y' \
     -e 'SA_PASSWORD=Passw0rd!' \
     -p 1433:1433 --name mssqlserver -h mssqlserver \
-    -d --rm mcr.microsoft.com/mssql/server:2019-latest
+    -d mcr.microsoft.com/mssql/server:2019-latest
     ```
 
 1. Login into the server and create the `todos_db` database. This database name is expected by the demo application.
@@ -130,22 +130,32 @@ Follow the next steps to build and run the application locally.
 1. Build the Bootable JAR. When we are building the Bootable JAR, we need to specify the database driver version we want to use:
  
     ```bash
-    todo-list (bootable-jar) $  mvn clean package -Dbootable-jar \
-    -Dorg.jboss.eap.datasources.mssqlserver.driver.version=7.4.1.jre11
+    todo-list (bootable-jar) $ MSSQLSERVER_DRIVER_VERSION=7.4.1.jre11 \
+    mvn clean package
     ```
 
 1. Launch the Bootable JAR by using the following command. When we are launching the application, we need to pass the required environment variables to configure the data source:
 
     ```bash
-    todo-list (bootable-jar) $ java -jar ./target/todo-list-bootable.jar -Djboss.node.name=node1 \
-    -Denv.MSSQLSERVER_USER=SA -Denv.MSSQLSERVER_PASSWORD=Passw0rd! -Denv.MSSQLSERVER_JNDI=java:/comp/env/jdbc/mssqlds -Denv.MSSQLSERVER_URL=jdbc:sqlserver://localhost:1433;database=todos_db
+    todo-list (bootable-jar) $ MSSQLSERVER_USER=SA \
+    MSSQLSERVER_PASSWORD=Passw0rd! \
+    MSSQLSERVER_JNDI=java:/comp/env/jdbc/mssqlds \
+    MSSQLSERVER_DATABASE=todos_db \
+    MSSQLSERVER_HOST=localhost \
+    MSSQLSERVER_PORT=1433 \
+    java -jar ./target/todo-list-bootable.jar -Djboss.node.name=node1
     ```
 
-1. (Optional) If you want to verify the clustering capabilities, you can also launch more instances of the same application by changing the `jboss.node.name` argument and, to avoid conflicts with the port numbers, shifting the numbers by using `jboss.socket.binding.port-offset` argument. For example, to launch a second instance that will represent a new pod on OpenShift, you can execute the following command in a new terminal window:
+1. (Optional) If you want to verify the clustering capabilities, you can also launch more instances of the same application by changing the `jboss.node.name` argument and, to avoid conflicts with the port numbers, shifting the port numbers by using `jboss.socket.binding.port-offset` argument. For example, to launch a second instance that will represent a new pod on OpenShift, you can execute the following command in a new terminal window:
     
     ```bash  
-    todo-list (bootable-jar) $ java -jar ./target/todo-list-bootable.jar -Djboss.node.name=node2 -Djboss.socket.binding.port-offset=10 \
-    -Denv.MSSQLSERVER_USER=SA -Denv.MSSQLSERVER_PASSWORD=Passw0rd! -Denv.MSSQLSERVER_JNDI=java:/comp/env/jdbc/mssqlds -Denv.MSSQLSERVER_URL=jdbc:sqlserver://localhost:1433;database=todos_db
+    todo-list (bootable-jar) $ MSSQLSERVER_USER=SA \
+    MSSQLSERVER_PASSWORD=Passw0rd! \
+    MSSQLSERVER_JNDI=java:/comp/env/jdbc/mssqlds \
+    MSSQLSERVER_DATABASE=todos_db \
+    MSSQLSERVER_HOST=localhost \
+    MSSQLSERVER_PORT=1433 \
+    java -jar ./target/todo-list-bootable.jar -Djboss.node.name=node2 -Djboss.socket.binding.port-offset=10
     ```
 
     > [!NOTE]
@@ -155,7 +165,7 @@ Follow the next steps to build and run the application locally.
 
     ![ToDo EAP demo Application](./media/howto-deploy-java-eap-app/todo-demo-application.png)
 
-1. Check the application health enpoints. These endpoints will be used by OpenShift to verify when your pod is live and ready to receive user requests:
+1. Check the application health endpoints. These endpoints will be used by OpenShift to verify when your pod is live and ready to receive user requests:
 
    ```bash  
     todo-list (bootable-jar) $ curl http://localhost:9990/health/live
@@ -165,15 +175,21 @@ Follow the next steps to build and run the application locally.
     ```
 
 1. Press **Control-C** to stop the application.
-1. Execute the following command to stop the database server. Since we launched with `--rm` argument, the container will be automatically removed when it stops:
+1. Execute the following command to stop the database server:
 
     ```bash
     docker stop mssqlserver
     ```
-         
+
+1. If you don't plan to use the docker database again, execute the following command to remove the database server from your docker registry:
+
+    ```bash
+    docker rm mssqlserver
+    ```
+
 ## Deploy to OpenShift
 
-Similar to what we did in our local environment, before deploying the demo application on OpenShift we will deploy the database server as well. The database server will be deployed by using a [DeploymentConfig OpenShift API resource](https://docs.openshift.com/container-platform/4.8/applications/deployments/what-deployments-are.html#deployments-and-deploymentconfigs_what-deployments-are). The database server deployment configuration is available as a YALM file on the application source code. To deploy the application, we are going to use the JBoss EAP Helm Charts that are already available in ARO. We also need to supply the desired configuration, for example, the database password, the driver version we want to use, and the connection information used by the data source. This information will be supplied by config maps.
+Before deploying the demo application on OpenShift we will deploy the database server. The database server will be deployed by using a [DeploymentConfig OpenShift API resource](https://docs.openshift.com/container-platform/4.8/applications/deployments/what-deployments-are.html#deployments-and-deploymentconfigs_what-deployments-are). The database server deployment configuration is available as a YALM file on the application source code. To deploy the application, we are going to use the JBoss EAP Helm Charts that are already available in ARO. We also need to supply the desired configuration, for example, the database user, the database password, the driver version we want to use, and the connection information used by the data source. Since this information contains sensible information, we will use OpenShift secrets objects to store it.
 
 > [!NOTE]
 > You can also use the JBoss EAP Operator to deploy this example, however, notice that the JBoss EAP Operator will deploy the application as stateful sets. Use the JBoss EAP Operator if your application requires one or more one of the following.
@@ -193,23 +209,26 @@ todo-list (bootable-jar-openshift) $
 
 Let's do a quick review about what we have changed:
 
-1. We have added a new maven profile name `bootable-jar-openshift` that configures the Bootable JAR with a specific configuration for running the server on the cloud, for example, it enables the JGroup subsystem to use TCP requests to discover other pods by using the KUBE_PING protocol.
-1. We have supplied a set of configuration files in the `todo-list/deployment` directory. In this directory, you will find the configuration files to deploy the database server and the application.
+1. We have added a new maven profile name `bootable-jar-openshift` that prepares the Bootable JAR with a specific configuration for running the server on the cloud, for example, it enables the JGroup subsystem to use TCP requests to discover other pods by using the KUBE_PING protocol.
+1. We have added a set of configuration files in the `todo-list/deployment` directory. In this directory, you will find the configuration files to deploy the database server and the application.
 
-### Deploy the database server to OpenShift
+### Deploy the database server on OpenShift
 
 The file to deploy the Microsoft SQL Server to OpenShift is `todo-list/deployment/mssqlserver/mssqlserver.yaml`. This file is composed by three configuration objects:
 - A Service: To expose the SQL server port.
 - A DeploymentConfig: To deploy the SQL server image.
-- A PersistentVolumeClaim: To reclaim persistent disk space for the database. It uses the storage class named `managed-premium`. This storage class is the default disk provisioning method available on the ARO cluster.
+- A PersistentVolumeClaim: To reclaim persistent disk space for the database. It uses the storage class named `managed-premium` which is available at your ARO cluster.
 
-This file expects the presence of a configmap object named `mssqlserver-cm` to supply the database administrator password. In the next steps, we will use the OpenShift CLI to create this config map, deploy the server and create the `todos_db`:
+This file expects the presence of a secret object named `mssqlserver-secret` to supply the database administrator password. In the next steps, we will use the OpenShift CLI to create this secret object, deploy the server and create the `todos_db`:
 
-1. To create the config map, execute the following command on the `eap-demo` project created before at the pre-requisite steps section:
+1. To create the secret with the information relative to the database, execute the following command on the `eap-demo` project created before at the pre-requisite steps section:
 
     ```bash
-    todo-list (bootable-jar-openshift) $ oc create configmap mssqlserver-cm --from-literal 'sa-password=Passw0rd!'
-    configmap/mssqlserver-cm created
+    todo-list (bootable-jar-openshift) $ todo-list (bootable-jar-openshift) $ oc create secret generic mssqlserver-secret \
+    --from-literal db-password=Passw0rd! \
+    --from-literal db-user=sa \
+    --from-literal db-name=todos_db
+    secret/mssqlserver-secret created
     ```
 
 1. Deploy the database server by executing the following:
@@ -244,21 +263,21 @@ This file expects the presence of a configmap object named `mssqlserver-cm` to s
 
 ### Deploy the application to OpenShift
 
-Now that we have the database server ready, we can deploy the demo application via EAP Helm Charts. The application Helm Chart configuration file is available at `todo-list/deployment/application/todo-list-helm-chart.yaml`. You could deploy this file via command line, however, to do so you would need to have Helm Charts installed locally. Instead of use the command line, the next steps explain how you can deploy this Helm Chart by using the OpenShift web console.
+Now that we have the database server ready, we can deploy the demo application via JBoss EAP Helm Charts. The Helm Chart application configuration file is available at `todo-list/deployment/application/todo-list-helm-chart.yaml`. You could deploy this file via command line, however, to do so you would need to have Helm Charts installed on your local machine. Instead of using the command line, the next steps explain how you can deploy this Helm Chart by using the OpenShift web console.
 
-Before deploying the application, let's creating the expected config map that will hold the application configuration:
+Before deploying the application, let's creating the expected secret that will hold specific application configuration. The Helm Chart will get the database user, password and name from the `mssqlserver-secret`secret object created before, and the driver version, the datasource JNDI name and the cluster password from the following secret:
 
 1. Execute the following to create the application config map:
 
     ```bash
-    oc create configmap todo-list-cm \
-    --from-literal mssqlserver-driver-version=7.4.1.jre11 \
-    --from-literal mssqlserver-user=SA \
-    --from-literal mssqlserver-password=Passw0rd! \
-    --from-literal mssqlserver-database=todos_db \
-    --from-literal mssqlserver-jndi=java:/comp/env/jdbc/mssqlds \
-    --from-literal mssqlserver-cluster-password=mut2UTG6gDwNDcVW
+    todo-list (bootable-jar-openshift) $ oc create secret generic todo-list-secret \
+    --from-literal app-driver-version=7.4.1.jre11 \
+    --from-literal app-ds-jndi=java:/comp/env/jdbc/mssqlds \
+    --from-literal app-cluster-password=mut2UTG6gDwNDcVW
     ```
+
+    > [!NOTE]
+    > You decide which cluster password you want to use, the pods that want to join to your cluster need such password, that prevents your JBoss EAP cluster is not messed up with any pod that are not under your control and ask to join.
 
     > [!NOTE]
     > You could have noticed from the above config map that we are not supplying the database Hostname and Port. That's not necessary. If you take a closer look at the application Helm Chart file, you will see that the database Hostname and Port are passed by using the following notations \$(MSSQLSERVER_SERVICE_HOST) and \$(MSSQLSERVER_SERVICE_PORT). This is a standard OpenShift notation that will make the application variables (MSSQLSERVER_HOST, MSSQLSERVER_PORT) get assigned to the values of pod environment variables (MSSQLSERVER_SERVICE_HOST, MSSQLSERVER_SERVICE_PORT) available at runtime, which are passed by OpenShift when the pod is launched. These variables are available to any pod because we have created a Service to expose the SQL server in the previous steps.
