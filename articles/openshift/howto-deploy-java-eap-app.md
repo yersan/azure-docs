@@ -31,7 +31,7 @@ The application is a stateful application that stores information in a HTTP Sess
 > [!NOTE]
 > Azure Red Hat OpenShift requires a minimum of 40 cores to create and run an OpenShift cluster. The default Azure resource quota for a new Azure subscription does not meet this requirement. To request an increase in your resource limit, see [Standard quota: Increase limits by VM series](../azure-portal/supportability/per-vm-quota-requests.md). Note that the free trial subscription isn't eligible for a quota increase, [upgrade to a Pay-As-You-Go subscription](../cost-management-billing/manage/upgrade-azure-subscription.md) before requesting a quota increase.
 
-1. Prepare a local machine with Unix-like operating system installed (for example, Fedora, RHEL    , macOS).
+1. Prepare a local machine with Unix-like operating system installed (for example, Fedora, RHEL, macOS).
 1. Install a Java SE implementation (for example, [Oracle JDK 11](https://www.oracle.com/java/technologies/downloads/#java11)).
 1. Install [Maven](https://maven.apache.org/download.cgi) 3.6.3 or higher.
 1. Install [Docker](https://docs.docker.com/get-docker/) for your OS.
@@ -74,9 +74,9 @@ The application is a stateful application that stores information in a HTTP Sess
 
 ## Prepare the application
 
-At this stage, you have cloned the demo application and your local repository is on the `main` branch. The demo application is a simple Jakarta EE 8 application that creates, reads, updates, and deletes records on a Microsoft SQL Server. Usually, you could have a JBoss EAP server installed on your local machine and configured with the required drivers and data source to allow connections from your application to the database server available on your environment.
+At this stage, you have cloned the demo application and your local repository is on the `main` branch. The demo application is a simple Jakarta EE 8 application that creates, reads, updates, and deletes records on a Microsoft SQL Server. This application can be deployed as it is on a JBoss EAP server installed in your local machine. You have to configure the server with the required database driver and data source. You also need a database server available in your local environment.
 
-When you are targeting OpenShift, you might want to trim the capabilities of your JBoss EAP server; for example, to reduce the security exposure of the provisioned server and reduce the overall footprint. You could also want to include some MicroProfile specs to make your application more suitable for running on an OpenShift environment. When using JBoss EAP, one way to accomplish this is by packaging your application and your server in a single deployment unit known as a Bootable JAR. Let's do that by adding the required changes to our demo application.
+However, when you are targeting OpenShift, you might want to trim the capabilities of your JBoss EAP server; for example, to reduce the security exposure of the provisioned server and reduce the overall footprint. You could also want to include some MicroProfile specs to make your application more suitable for running on an OpenShift environment. When using JBoss EAP, one way to accomplish this is by packaging your application and your server in a single deployment unit known as a Bootable JAR. Let's do that by adding the required changes to our demo application.
 
 Navigate to your demo application local repository and change the branch to `bootable-jar`:
 
@@ -143,10 +143,10 @@ Follow the next steps to build and run the application locally.
     MSSQLSERVER_DATABASE=todos_db \
     MSSQLSERVER_HOST=localhost \
     MSSQLSERVER_PORT=1433 \
-    java -jar ./target/todo-list-bootable.jar -Djboss.node.name=node1
+    mvn wildfly-jar:run
     ```
 
-1. (Optional) If you want to verify the clustering capabilities, you can also launch more instances of the same application by changing the `jboss.node.name` argument and, to avoid conflicts with the port numbers, shifting the port numbers by using `jboss.socket.binding.port-offset` argument. For example, to launch a second instance that will represent a new pod on OpenShift, you can execute the following command in a new terminal window:
+1. (Optional) If you want to verify the clustering capabilities, you can also launch more instances of the same application by passing to the Bootable JAR the `jboss.node.name` argument and, to avoid conflicts with the port numbers, shifting the port numbers by using `jboss.socket.binding.port-offset`. For example, to launch a second instance that will represent a new pod on OpenShift, you can execute the following command in a new terminal window:
     
     ```bash  
     todo-list (bootable-jar) $ MSSQLSERVER_USER=SA \
@@ -155,17 +155,17 @@ Follow the next steps to build and run the application locally.
     MSSQLSERVER_DATABASE=todos_db \
     MSSQLSERVER_HOST=localhost \
     MSSQLSERVER_PORT=1433 \
-    java -jar ./target/todo-list-bootable.jar -Djboss.node.name=node2 -Djboss.socket.binding.port-offset=1000
+    mvn wildfly-jar:run -Dwildfly.bootable.arguments="-Djboss.node.name=node2 -Djboss.socket.binding.port-offset=1000"
     ```
 
-    If your cluster is working, you will see the following trace in the server console log:
+    If your cluster is working, you will see on the server console log a trace similar to the following one:
 
     ```
-    INFO  [org.infinispan.CLUSTER] (thread-7,ejb,node1) ISPN000094: Received new cluster view for channel ejb: [node1|1] (2) [node1, node2]
+    INFO  [org.infinispan.CLUSTER] (thread-6,ejb,node) ISPN000094: Received new cluster view for channel ejb
     ``` 
 
     > [!NOTE]
-    > By default the Bootable JAR configures the JGroups subsystem to use the UDP protocol and sends messages to discover other cluster members to the 230.0.0.4 multicast address. To properly verify the clustering capabilities on your local machine, your Operating System should be capable of sending and receiving multicast datagrams and route them to the 230.0.0.4 IP through your ethernet interface. Check your network configuration and verify this is working if you see warnings related to the cluster on the server logs. You should see the following log trace in hhe console log if your cluster is working:     
+    > By default the Bootable JAR configures the JGroups subsystem to use the UDP protocol and sends messages to discover other cluster members to the 230.0.0.4 multicast address. To properly verify the clustering capabilities on your local machine, your Operating System should be capable of sending and receiving multicast datagrams and route them to the 230.0.0.4 IP through your ethernet interface. Check your network configuration and verify whether is working if you see warnings related to the cluster on the server logs.
     
 
 1. Open `http://localhost:8080/` in your browser to visit the application home page. If you have created more instances, you can access them by shifting the port number, for example `http://localhost:9080/`. The application will look similar to the following image:
@@ -189,7 +189,7 @@ Follow the next steps to build and run the application locally.
     docker stop mssqlserver
     ```
 
-1. If you don't plan to use the docker database again, execute the following command to remove the database server from your docker registry:
+1. If you don't plan to use the Docker database again, execute the following command to remove the database server from your Docker registry:
 
     ```bash
     docker rm mssqlserver
@@ -208,7 +208,7 @@ To deploy the application, we are going to use the JBoss EAP Helm Charts that ar
 > - Stable, persistent storage.
 > - Ordered, graceful deployment and scaling.
 > - Ordered, automated rolling updates.
-> - Transaction recovery facility when a pod is scaled down.
+> - Transaction recovery facility when a pod is scaled down or crashes.
 
 Navigate to your demo application local repository and change the current branch to `bootable-jar-openshift`:
 
@@ -272,7 +272,7 @@ This file expects the presence of a secret object named `mssqlserver-secret` to 
     exit
     ```
 
-### Deploy the application to OpenShift
+### Deploy the application on OpenShift
 
 Now that we have the database server ready, we can deploy the demo application via JBoss EAP Helm Charts. The Helm Chart application configuration file is available at `todo-list/deployment/application/todo-list-helm-chart.yaml`. You could deploy this file via the command line; however, to do so you would need to have Helm Charts installed on your local machine. Instead of using the command line, the next steps explain how you can deploy this Helm Chart by using the OpenShift web console.
 
@@ -315,7 +315,7 @@ At this point, we need to configure the chart to be able to build and deploy the
 1. We can configure the Helm Chart either using a `Form View` or a `YAML View`. Check the `YAML View` radio button in the `Configure via` box.
 1. Then, change the YAML content to configure the Helm Chart by copying the content of the Helm Chart file available at `todo-list/deployment/application/todo-list-helm-chart.yaml` instead of the existing content:
 
-   ![OpenShift console EAP Helm Chart YAML content](./media/howto-deploy-java-eap-app/console_eap_helm_charts_yalm_content.png)
+   ![OpenShift console EAP Helm Chart YAML content](./media/howto-deploy-java-eap-app/console_eap_helm_charts_yaml_content.png)
 
 1. Finally, click on the `Install` button to start the installation. This will open the `Topology view` with a graphical representation of the Helm release (named eap-todo-list-demo) and its associated resources.
 
@@ -331,9 +331,7 @@ At this point, we need to configure the chart to be able to build and deploy the
 
     ![OpenShift application running](./media/howto-deploy-java-eap-app/application_running_openshift.png)
 
-1. The application shows you the name of the pod which has served the information. To verify the clustering capabilities, you could add some Todos and select "All" in the `Filter` combo box. Then delete the pod with the name indicated in the `Server Host Name` field that appears on the application `(oc delete pod <pod name>)`, and once deleted, create a new Todo on the same application window. You will see that the new Todo is added via an Ajax request and your view has not been reset to the default; "All" is still selected on your filter combo box and all the records are shown in the application. However, this time your request was server by a different pod.
-
-    It means your Jakarta Faces view, which was stored on a HTTP Session, has not been reset to a new one when the response is served by a different pod. Indeed you will see that the `Session ID` field has not changed.
+1. The application shows you the name of the pod which has served the information. To verify the clustering capabilities, you could add some Todos. Then delete the pod with the name indicated in the `Server Host Name` field that appears on the application `(oc delete pod <pod name>)`, and once deleted, create a new Todo on the same application window. You will see that the new Todo is added via an Ajax request and the `Server Host Name` field now shows a different name. Behind the scenes, the new request has been sent by the OpenShift load balancer to an available pod, and Jakarta Faces has been able to restore the Jakarta Faces view retrieving it from the HTTP Session copy stored in the pod which is processing the request. Indeed you will see that the `Session ID` field has not changed. If the session was not replicated across your pods, you will get a Jakarta Faces ViewExpiredException.
 
 ## Clean up resources
 
