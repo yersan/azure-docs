@@ -391,5 +391,7 @@ In this guide, you learned how to:
 You can learn more from references used in this guide:
 
 * [Red Hat JBoss Enterprise Application Platform](https://www.redhat.com/en/technologies/jboss-middleware/application-platform)
-* [EAP Helm Charts](https://jbossas.github.io/eap-charts/)
 * [Azure Red Hat OpenShift](https://azure.microsoft.com/services/openshift/)
+* [EAP Helm Charts](https://jbossas.github.io/eap-charts/)
+* [EAP Bootable JAR](https://access.redhat.com/documentation/en-us/red_hat_jboss_enterprise_application_platform/7.4/html-single/using_jboss_eap_xp_3.0.0/index#the-bootable-jar_default)
+
