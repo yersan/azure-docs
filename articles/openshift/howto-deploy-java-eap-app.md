@@ -146,6 +146,8 @@ Follow the next steps to build and run the application locally.
     mvn wildfly-jar:run
     ```
 
+    Check the [Galleon Feature Pack for integrating datasources](https://github.com/jbossas/eap-datasources-galleon-pack/blob/main/doc/mssqlserver/README.md) documentation to get a complete list of available environment variables.
+
 1. (Optional) If you want to verify the clustering capabilities, you can also launch more instances of the same application by passing to the Bootable JAR the `jboss.node.name` argument and, to avoid conflicts with the port numbers, shifting the port numbers by using `jboss.socket.binding.port-offset`. For example, to launch a second instance that will represent a new pod on OpenShift, you can execute the following command in a new terminal window:
     
     ```bash  
@@ -202,7 +204,7 @@ Before deploying the demo application on OpenShift we will deploy the database s
 To deploy the application, we are going to use the JBoss EAP Helm Charts that are already available in ARO. We also need to supply the desired configuration, for example, the database user, the database password, the driver version we want to use, and the connection information used by the data source. Since this information contains sensitive information, we will use [OpenShift Secret objects](https://docs.openshift.com/container-platform/4.8/nodes/pods/nodes-pods-secrets.html#nodes-pods-secrets-about_nodes-pods-secrets) to store it.
 
 > [!NOTE]
-> You can also use the JBoss EAP Operator to deploy this example, however, notice that the JBoss EAP Operator will deploy the application as `StatefulSets`. Use the JBoss EAP Operator if your application requires one or more one of the following.
+> You can also use the [JBoss EAP Operator](https://access.redhat.com/documentation/en-us/red_hat_jboss_enterprise_application_platform/7.4/html/getting_started_with_jboss_eap_for_openshift_container_platform/eap-operator-for-automating-application-deployment-on-openshift_default) to deploy this example, however, notice that the JBoss EAP Operator will deploy the application as `StatefulSets`. Use the JBoss EAP Operator if your application requires one or more one of the following.
 >
 > - Stable, unique network identifiers.
 > - Stable, persistent storage.
@@ -331,7 +333,7 @@ At this point, we need to configure the chart to be able to build and deploy the
 
     ![OpenShift application running](./media/howto-deploy-java-eap-app/application_running_openshift.png)
 
-1. The application shows you the name of the pod which has served the information. To verify the clustering capabilities, you could add some Todos. Then delete the pod with the name indicated in the `Server Host Name` field that appears on the application `(oc delete pod <pod name>)`, and once deleted, create a new Todo on the same application window. You will see that the new Todo is added via an Ajax request and the `Server Host Name` field now shows a different name. Behind the scenes, the new request has been dispatched by the OpenShift load balancer and delivered to an available pod. The Jakarta Faces view has been restored from the HTTP Session copy stored in the pod which is now processing the request. Indeed you will see that the `Session ID` field has not changed. If the session were not replicated across your pods, you would get a Jakarta Faces ViewExpiredException.
+1. The application shows you the name of the pod which has served the information. To verify the clustering capabilities, you could add some Todos. Then delete the pod with the name indicated in the `Server Host Name` field that appears on the application `(oc delete pod <pod name>)`, and once deleted, create a new Todo on the same application window. You will see that the new Todo is added via an Ajax request and the `Server Host Name` field now shows a different name. Behind the scenes, the new request has been dispatched by the OpenShift load balancer and delivered to an available pod. The Jakarta Faces view has been restored from the HTTP Session copy stored in the pod which is now processing the request. Indeed you will see that the `Session ID` field has not changed. If the session were not replicated across your pods, you would get a Jakarta Faces ViewExpiredException, and your application won't work as expected.
 
 ## Clean up resources
 
@@ -392,6 +394,6 @@ You can learn more from references used in this guide:
 
 * [Red Hat JBoss Enterprise Application Platform](https://www.redhat.com/en/technologies/jboss-middleware/application-platform)
 * [Azure Red Hat OpenShift](https://azure.microsoft.com/services/openshift/)
-* [EAP Helm Charts](https://jbossas.github.io/eap-charts/)
-* [EAP Bootable JAR](https://access.redhat.com/documentation/en-us/red_hat_jboss_enterprise_application_platform/7.4/html-single/using_jboss_eap_xp_3.0.0/index#the-bootable-jar_default)
+* [JBoss EAP Helm Charts](https://jbossas.github.io/eap-charts/)
+* [JBoss EAP Bootable JAR](https://access.redhat.com/documentation/en-us/red_hat_jboss_enterprise_application_platform/7.4/html-single/using_jboss_eap_xp_3.0.0/index#the-bootable-jar_default)
 
